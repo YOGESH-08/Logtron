@@ -111,3 +111,143 @@ class Fragment:
 
     start: int
     accept: int
+
+
+# ============================================================
+# THOMPSON BUILDER
+# ============================================================
+
+class ThompsonConstructor:
+    """
+    Converts an AST into an epsilon-NFA.
+    """
+
+    def __init__(self):
+        self.nfa = NFA()
+        self.next_state = 0
+
+    # ========================================================
+    # PUBLIC API
+    # ========================================================
+
+    def build(self, ast: ASTNode) -> NFA:
+        """
+        Build an NFA from the supplied AST.
+        """
+
+        if ast is None:
+            raise ValueError(
+                "AST cannot be None."
+            )
+
+        fragment = self._build_fragment(ast)
+
+        self.nfa.start = fragment.start
+        self.nfa.accept = fragment.accept
+
+        return self.nfa
+
+    # ========================================================
+    # STATE CREATION
+    # ========================================================
+
+    def _new_state(self) -> int:
+        """
+        Create a new unique NFA state.
+        """
+
+        state = self.next_state
+
+        self.next_state += 1
+
+        self.nfa.add_state(state)
+
+        return state
+
+    # ========================================================
+    # AST WALK
+    # ========================================================
+
+    def _build_fragment(
+        self,
+        node: ASTNode
+    ) -> Fragment:
+        """
+        Recursively construct the NFA.
+
+        This is the core of Thompson Construction.
+        """
+
+        node_type = node.node_type
+
+        # ----------------------------------------------------
+        # SYMBOL
+        # ----------------------------------------------------
+
+        if node_type == "SYMBOL":
+
+            start = self._new_state()
+            accept = self._new_state()
+
+            self.nfa.add_transition(
+                start,
+                node.value,
+                accept
+            )
+
+            return Fragment(
+                start=start,
+                accept=accept
+            )
+
+        # ----------------------------------------------------
+        # ANY CHARACTER
+        # ----------------------------------------------------
+
+        if node_type == "ANY":
+
+            start = self._new_state()
+            accept = self._new_state()
+
+            # Special internal symbol representing '.'
+            self.nfa.add_transition(
+                start,
+                "__ANY__",
+                accept
+            )
+
+            return Fragment(
+                start=start,
+                accept=accept
+            )
+
+        # ----------------------------------------------------
+        # CONCATENATION
+        # ----------------------------------------------------
+
+        if node_type == "CONCAT":
+
+            left = self._build_fragment(
+                node.left
+            )
+
+            right = self._build_fragment(
+                node.right
+            )
+
+            # Connect left accept to right start
+            # using epsilon.
+
+            self.nfa.add_epsilon(
+                left.accept,
+                right.start
+            )
+
+            return Fragment(
+                start=left.start,
+                accept=right.accept
+            )
+
+        raise ValueError(
+            f"Unsupported AST node: {node_type}"
+        )
