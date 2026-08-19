@@ -222,6 +222,16 @@ class ThompsonConstructor:
             )
 
         # ----------------------------------------------------
+        # CHARACTER CLASS
+        # ----------------------------------------------------
+
+        if node_type == "CHAR_CLASS":
+
+            return self._build_character_class(
+                node.value
+            )
+
+        # ----------------------------------------------------
         # CONCATENATION
         # ----------------------------------------------------
 
@@ -248,6 +258,306 @@ class ThompsonConstructor:
                 accept=right.accept
             )
 
+        # ----------------------------------------------------
+        # UNION
+        # ----------------------------------------------------
+
+        if node_type == "UNION":
+
+            return self._build_union(
+                node.left,
+                node.right
+            )
+
+        # ----------------------------------------------------
+        # STAR
+        # ----------------------------------------------------
+
+        if node_type == "STAR":
+
+            return self._build_star(
+                node.left
+            )
+
+        # ----------------------------------------------------
+        # PLUS
+        # ----------------------------------------------------
+
+        if node_type == "PLUS":
+
+            return self._build_plus(
+                node.left
+            )
+
+        # ----------------------------------------------------
+        # OPTIONAL
+        # ----------------------------------------------------
+
+        if node_type == "OPTIONAL":
+
+            return self._build_optional(
+                node.left
+            )
+
         raise ValueError(
             f"Unsupported AST node: {node_type}"
+        )
+
+    # ========================================================
+    # CHARACTER CLASS
+    # ========================================================
+
+    def _build_character_class(
+        self,
+        characters: Set[str]
+    ) -> Fragment:
+        """
+        Construct an NFA fragment for:
+
+            [abc]
+
+        This becomes:
+
+                 a
+              ┌──────┐
+              │      ▼
+        start ──────> accept
+              │      ▲
+              └──────┘
+                 b/c
+
+        More precisely, multiple transitions leave the same
+        start state and reach the same accept state.
+        """
+
+        start = self._new_state()
+        accept = self._new_state()
+
+        for character in characters:
+
+            self.nfa.add_transition(
+                start,
+                character,
+                accept
+            )
+
+        return Fragment(
+            start=start,
+            accept=accept
+        )
+
+    # ========================================================
+    # UNION
+    # ========================================================
+
+    def _build_union(
+        self,
+        left_node: ASTNode,
+        right_node: ASTNode
+    ) -> Fragment:
+        """
+        Thompson construction for:
+
+            A|B
+
+                  ε ---> A ---> ε
+                 /              \
+        start --                  --> accept
+                 \              /
+                  ε ---> B ---> ε
+        """
+
+        left = self._build_fragment(
+            left_node
+        )
+
+        right = self._build_fragment(
+            right_node
+        )
+
+        start = self._new_state()
+        accept = self._new_state()
+
+        # Start can enter either branch.
+
+        self.nfa.add_epsilon(
+            start,
+            left.start
+        )
+
+        self.nfa.add_epsilon(
+            start,
+            right.start
+        )
+
+        # Both branches lead to final accept.
+
+        self.nfa.add_epsilon(
+            left.accept,
+            accept
+        )
+
+        self.nfa.add_epsilon(
+            right.accept,
+            accept
+        )
+
+        return Fragment(
+            start=start,
+            accept=accept
+        )
+
+    # ========================================================
+    # STAR
+    # ========================================================
+
+    def _build_star(
+        self,
+        child_node: ASTNode
+    ) -> Fragment:
+        """
+        Thompson construction for:
+
+            A*
+
+        Allows:
+
+            zero occurrences
+            one occurrence
+            multiple occurrences
+        """
+
+        child = self._build_fragment(
+            child_node
+        )
+
+        start = self._new_state()
+        accept = self._new_state()
+
+        # Empty string is allowed.
+
+        self.nfa.add_epsilon(
+            start,
+            accept
+        )
+
+        # Enter the child.
+
+        self.nfa.add_epsilon(
+            start,
+            child.start
+        )
+
+        # Exit the child.
+
+        self.nfa.add_epsilon(
+            child.accept,
+            accept
+        )
+
+        # Repeat the child.
+
+        self.nfa.add_epsilon(
+            child.accept,
+            child.start
+        )
+
+        return Fragment(
+            start=start,
+            accept=accept
+        )
+
+    # ========================================================
+    # PLUS
+    # ========================================================
+
+    def _build_plus(
+        self,
+        child_node: ASTNode
+    ) -> Fragment:
+        """
+        Thompson construction for:
+
+            A+
+
+        Equivalent to:
+
+            AA*
+
+        but constructed directly.
+        """
+
+        child = self._build_fragment(
+            child_node
+        )
+
+        start = child.start
+        accept = self._new_state()
+
+        # One occurrence is mandatory.
+
+        self.nfa.add_epsilon(
+            child.accept,
+            accept
+        )
+
+        # Additional occurrences.
+
+        self.nfa.add_epsilon(
+            child.accept,
+            child.start
+        )
+
+        return Fragment(
+            start=start,
+            accept=accept
+        )
+
+    # ========================================================
+    # OPTIONAL
+    # ========================================================
+
+    def _build_optional(
+        self,
+        child_node: ASTNode
+    ) -> Fragment:
+        """
+        Thompson construction for:
+
+            A?
+
+        Equivalent to:
+
+            A|ε
+        """
+
+        child = self._build_fragment(
+            child_node
+        )
+
+        start = self._new_state()
+        accept = self._new_state()
+
+        # Skip the child entirely.
+
+        self.nfa.add_epsilon(
+            start,
+            accept
+        )
+
+        # Or execute the child.
+
+        self.nfa.add_epsilon(
+            start,
+            child.start
+        )
+
+        self.nfa.add_epsilon(
+            child.accept,
+            accept
+        )
+
+        return Fragment(
+            start=start,
+            accept=accept
         )
