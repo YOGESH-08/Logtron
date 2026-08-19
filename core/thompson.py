@@ -381,7 +381,7 @@ class ThompsonConstructor:
         left_node: ASTNode,
         right_node: ASTNode
     ) -> Fragment:
-        """
+        r"""
         Thompson construction for:
 
             A|B
