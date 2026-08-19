@@ -12,6 +12,32 @@ Supported AST nodes:
     STAR
     PLUS
     OPTIONAL
+
+NFA representation:
+
+    states:
+        Set[int]
+
+    alphabet:
+        Set[str]
+
+    transitions:
+        {
+            state: {
+                symbol: {destination_states}
+            }
+        }
+
+    epsilon:
+        {
+            state: {destination_states}
+        }
+
+    start:
+        int
+
+    accept:
+        int
 """
 
 from dataclasses import dataclass, field
@@ -561,3 +587,76 @@ class ThompsonConstructor:
             start=start,
             accept=accept
         )
+
+
+# ============================================================
+# CONVENIENCE FUNCTION
+# ============================================================
+
+def regex_to_nfa(pattern: str) -> NFA:
+    """
+    Convenience function.
+
+    Example:
+
+        nfa = regex_to_nfa("a(b|c)*")
+    """
+
+    from .regex_parser import RegexParser
+
+    ast = RegexParser(pattern).parse()
+
+    constructor = ThompsonConstructor()
+
+    return constructor.build(ast)
+
+
+# ============================================================
+# NFA DEBUGGING
+# ============================================================
+
+def print_nfa(nfa: NFA):
+    """
+    Print the NFA in a human-readable format.
+
+    Useful for debugging and verifying Thompson Construction.
+    """
+
+    print("\n========== NFA ==========")
+
+    print("States :", sorted(nfa.states))
+    print("Start  :", nfa.start)
+    print("Accept :", nfa.accept)
+
+    print("\nTransitions:")
+
+    for source in sorted(nfa.transitions):
+
+        for symbol in sorted(
+            nfa.transitions[source]
+        ):
+
+            destinations = sorted(
+                nfa.transitions[source][symbol]
+            )
+
+            for destination in destinations:
+
+                print(
+                    f"  {source} --{symbol}--> "
+                    f"{destination}"
+                )
+
+    print("\nEpsilon transitions:")
+
+    for source in sorted(nfa.epsilon):
+
+        for destination in sorted(
+            nfa.epsilon[source]
+        ):
+
+            print(
+                f"  {source} --ε--> {destination}"
+            )
+
+    print("=========================\n")
