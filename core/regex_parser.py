@@ -136,8 +136,33 @@ def _tokenize(self, pattern : str) -> List[Token]:
     while i < len(pattern):
         character = pattern[i]
 
+        #Escape Sequence
+        if character == "\\":
+            if i + 1 >= len(pattern):
+                raise ValueError(
+                    "Dangling escape character at end of regex"
+                )
+
+            i += 1
+
+            escaped_char = pattern[i]
+
+            tokens.append(
+                Token("SYMBOL", escaped_char)
+            )
+
+        #Character Class
+        elif character == "[":
+            char_class, new_index = self._parse_character_class(
+                pattern, i
+            )
+
+            tokens.append(Token("CHAR_CLASS", char_class))
+
+            i = new_index
+
         #Operators
-        if character in {"|", "*", "+", "?", ".", "(", ")"}:
+        elif character in {"|", "*", "+", "?", ".", "(", ")"}:
 
             #Dot represents ANY Character
             if character == ".":
@@ -158,3 +183,79 @@ def _tokenize(self, pattern : str) -> List[Token]:
         i += 1
 
     return tokens
+
+
+#Character class
+
+def _parse_character_class(self, pattern : str, start : int):
+    """
+    Parse a character class.
+
+    Example:
+
+        [abc]
+
+    Returns:
+
+        (set_of_characters, closing_bracket_index)
+    """
+
+    characters = set()
+
+    i = start + 1
+
+    if i >= len(pattern):
+        raise ValueError(
+            "Unclosed character class"
+        )
+
+    while i < len(pattern) and pattern[i] != "]":
+
+        #Escape inside character class
+
+        if pattern[i] == "\\":
+            if i + 1 >= len(pattern):
+                raise ValueError(
+                    "Dangling escape inside character class"
+                )
+
+            characters.add(pattern[i+1])
+
+            i += 2
+            continue
+
+        if(i + 2 < len(pattern)
+           and pattern[i+1] == "-"
+           and pattern[i+2] != "]"):
+            start_char = pattern[i]
+            end_char = pattern[i+2]
+
+            if ord(start_char) > ord(end_char):
+                raise ValueError(
+                    f"Invalid character range : "
+                    f"{start_char}-{end_char}"
+                )
+
+            for code in range(ord(start_char), ord(end_char) + 1):
+                characters.add(chr(code))
+
+            i += 3
+            continue
+
+        #Normal Character
+        characters.add(pattern[i])
+
+        i += 1
+
+    if i >= len(pattern):
+        raise ValueError(
+            "Unclosed character class"
+        )
+
+    if not characters:
+        raise ValueError(
+            "Empty character class"
+        )
+
+    return characters, i
+
