@@ -38,6 +38,23 @@ immunizing log engines against Catastrophic Backtracking (ReDoS).
 """
 )
 
+# Initialize Session State for Preset Patterns
+if "pattern_input" not in st.session_state:
+    st.session_state["pattern_input"] = "(ERROR|WARN).*"
+
+
+def on_preset_change():
+    selected = st.session_state.get("preset_select", "Custom")
+    if selected == "Apache Error Logs: (ERROR|WARN).*":
+        st.session_state["pattern_input"] = "(ERROR|WARN).*"
+    elif selected == "IP Address: [0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+":
+        st.session_state["pattern_input"] = r"[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"
+    elif selected == "Status Codes (4xx/5xx): (4|5)[0-9][0-9]":
+        st.session_state["pattern_input"] = "(4|5)[0-9][0-9]"
+    elif selected == "ReDoS Pattern Test: (a+)+b":
+        st.session_state["pattern_input"] = "(a+)+b"
+
+
 # Sidebar Controls
 st.sidebar.header("⚙️ Configuration")
 
@@ -50,21 +67,13 @@ preset_option = st.sidebar.selectbox(
         "Status Codes (4xx/5xx): (4|5)[0-9][0-9]",
         "ReDoS Pattern Test: (a+)+b",
     ],
+    key="preset_select",
+    on_change=on_preset_change,
 )
-
-default_pattern = "(ERROR|WARN).*"
-if preset_option == "Apache Error Logs: (ERROR|WARN).*":
-    default_pattern = "(ERROR|WARN).*"
-elif preset_option == "IP Address: [0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+":
-    default_pattern = r"[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"
-elif preset_option == "Status Codes (4xx/5xx): (4|5)[0-9][0-9]":
-    default_pattern = "(4|5)[0-9][0-9]"
-elif preset_option == "ReDoS Pattern Test: (a+)+b":
-    default_pattern = "(a+)+b"
 
 regex_input = st.sidebar.text_input(
     "Regular Expression Pattern",
-    value=default_pattern,
+    key="pattern_input",
     help="Enter regular expression (e.g. (ERROR|WARN).*, [0-9]+, a(b|c)*)",
 )
 
@@ -129,15 +138,15 @@ tab1, tab2, tab3, tab4 = st.tabs(
 )
 
 # -----------------------------------------------------------------------------
-# TAB 1: Match Results
+# TAB 1: Match Results (Developer 1 - Yogesh Task)
 # -----------------------------------------------------------------------------
 with tab1:
     st.subheader("Log Scan & Match Highlighting")
 
     if pipeline_error:
-        st.warning("Please correct the regular expression pattern in the sidebar.")
+        st.warning("⚠️ Please correct the regular expression pattern in the sidebar configuration.")
     elif not log_content:
-        st.info("Please enter or upload log content to scan.")
+        st.info("ℹ️ Please enter or upload log content in the sidebar to run the scan.")
     else:
         start_time = time.perf_counter()
         matches = scanner.find_match_objects(
@@ -193,9 +202,11 @@ with tab1:
                 for i, m in enumerate(matches)
             ]
             st.dataframe(pd.DataFrame(match_data), use_container_width=True)
+        else:
+            st.info("No matching pattern instances found in the provided log payload.")
 
 # -----------------------------------------------------------------------------
-# TAB 2: Automata Visualizer
+# TAB 2: Automata Visualizer (Developer 2 - Teammate Task)
 # -----------------------------------------------------------------------------
 with tab2:
     st.subheader("Automata Pipeline Visualization")
@@ -246,7 +257,7 @@ with tab2:
                 st.code(ast_to_string(ast), language="text")
 
 # -----------------------------------------------------------------------------
-# TAB 3: ReDoS Performance Benchmark
+# TAB 3: ReDoS Performance Benchmark (Developer 2 - Teammate Task)
 # -----------------------------------------------------------------------------
 with tab3:
     st.subheader("Performance Benchmark vs Python `re` Engine")
@@ -288,7 +299,7 @@ with tab3:
                 st.bar_chart(chart_data)
 
 # -----------------------------------------------------------------------------
-# TAB 4: Architecture & Theory
+# TAB 4: Architecture & Theory (Developer 2 - Teammate Task)
 # -----------------------------------------------------------------------------
 with tab4:
     st.subheader("Theory of Computation (BITE306L) Mapping")
