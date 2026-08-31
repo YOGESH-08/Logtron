@@ -1,10 +1,12 @@
 import pytest
 
+from benchmark.benchmark_runner import BenchmarkRunner, run_benchmark
 from core.hopcroft import minimize_dfa
 from core.regex_parser import RegexParser, RegexSyntaxError
 from core.scanner import DFAScanner
 from core.subset import DFA, SubsetConstructor, nfa_to_dfa
 from core.thompson import regex_to_nfa
+from visualization.graph_visualizer import visualize_dfa, visualize_nfa
 
 
 def build_scanner(pattern: str) -> DFAScanner:
@@ -126,3 +128,30 @@ def test_scanner_can_return_non_overlapping_longest_matches():
     scanner = build_scanner("[0-9]+")
 
     assert scanner.find_matches("abc 12 345", overlapping=False) == [(4, 6), (7, 10)]
+
+
+def test_visualization_nfa_and_dfa_returns_digraph():
+    nfa = regex_to_nfa("a|b")
+    dfa = minimize_dfa(nfa_to_dfa(nfa))
+
+    nfa_dot = visualize_nfa(nfa)
+    dfa_dot = visualize_dfa(dfa)
+
+    assert nfa_dot is not None
+    assert dfa_dot is not None
+    assert "a" in nfa_dot.source
+    assert "b" in dfa_dot.source
+
+
+def test_benchmark_runner_single_and_scaling():
+    metrics = run_benchmark("ERROR|WARN", "ERROR sample log line\nWARN memory high")
+
+    assert metrics.pattern == "ERROR|WARN"
+    assert metrics.dfa_scanner_matches == 2
+    assert metrics.nfa_states > 0
+    assert metrics.dfa_states > 0
+    assert metrics.minimal_dfa_states > 0
+
+    suite = BenchmarkRunner("ERROR").run_scaling_benchmark("INFO ok\nERROR failed", scales=[1, 2])
+    assert len(suite.metrics) == 2
+    assert suite.summary["pattern"] == "ERROR"
