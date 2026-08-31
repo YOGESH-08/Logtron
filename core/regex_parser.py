@@ -1,154 +1,289 @@
-"""
-Regex Parser & AST Definitions for LogScan DFA.
+"""Regular expression parser for the LogScan DFA pipeline.
 
-Provides ASTNode dataclass representing nodes in the regular expression syntax tree
-and RegexParser to convert string patterns into AST representation.
-
-Supported AST nodes:
-    SYMBOL, ANY, CHAR_CLASS, CONCAT, UNION, STAR, PLUS, OPTIONAL
+The parser supports the regular-language subset used by this project: union,
+concatenation, postfix repetition, grouping, wildcard, escapes, and character
+classes. It returns ASTNode objects consumed by Thompson construction.
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Set, Any, List, Tuple
+from string import ascii_letters, digits, whitespace
+from typing import Any
+
+
+class RegexSyntaxError(ValueError):
+    """Raised when a pattern cannot be parsed as a supported regex."""
 
 
 @dataclass
 class ASTNode:
-    """
-    Abstract Syntax Tree node for regular expressions.
-    """
-    node_type: str  # SYMBOL, ANY, CHAR_CLASS, CONCAT, UNION, STAR, PLUS, OPTIONAL
+    node_type: str
     value: Any = None
-    left: Optional['ASTNode'] = None
-    right: Optional['ASTNode'] = None
+    left: "ASTNode | None" = None
+    right: "ASTNode | None" = None
+
+
+@dataclass(frozen=True)
+class Token:
+    kind: str
+    value: Any = None
+
+    @property
+    def token_type(self) -> str:
+        """Compatibility alias used by the original script-style tests."""
+        return self.kind
 
 
 class RegexParser:
-    """
-    Infix Regular Expression Parser using Shunting-Yard algorithm.
-    Converts regex pattern string into an ASTNode tree.
-    """
+    """Parse supported regex syntax into an abstract syntax tree."""
+
+    CONCAT = "CONCAT"
+    UNION = "UNION"
+    POSTFIX = {"STAR", "PLUS", "OPTIONAL"}
+    OPERANDS = {"SYMBOL", "ANY", "CHAR_CLASS"}
+    PRECEDENCE = {
+        UNION: 1,
+        CONCAT: 2,
+    }
 
     def __init__(self, pattern: str):
-        if not pattern:
-            raise ValueError("Regex pattern cannot be empty.")
         self.pattern = pattern
+        self.tokens: list[Token] = []
+        self.postfix: list[Token] = []
 
     def parse(self) -> ASTNode:
-        """
-        Parses regex pattern into an ASTNode tree.
-        """
-        tokens = self._tokenize(self.pattern)
-        explicit_tokens = self._insert_explicit_concat(tokens)
-        postfix = self._shunting_yard(explicit_tokens)
-        return self._build_ast(postfix)
+        self.tokens = self.tokenize()
+        tokens = self.insert_concatenation(self.tokens)
+        self.postfix = self.to_postfix(tokens)
+        return self.build_ast(self.postfix)
 
-    def _tokenize(self, pattern: str) -> List[Tuple[str, Any]]:
-        tokens = []
+    def tokenize(self) -> list[Token]:
+        if self.pattern == "":
+            raise RegexSyntaxError("empty regular expressions are not supported")
+
+        tokens: list[Token] = []
         i = 0
-        n = len(pattern)
-        while i < n:
-            char = pattern[i]
-            if char == '\\':
-                if i + 1 < n:
-                    tokens.append(('SYMBOL', pattern[i + 1]))
-                    i += 2
-                else:
-                    tokens.append(('SYMBOL', '\\'))
-                    i += 1
-            elif char == '[':
-                j = i + 1
-                char_set: Set[str] = set()
-                while j < n and pattern[j] != ']':
-                    if j + 2 < n and pattern[j + 1] == '-':
-                        start_c, end_c = ord(pattern[j]), ord(pattern[j + 2])
-                        for c in range(start_c, end_c + 1):
-                            char_set.add(chr(c))
-                        j += 3
-                    else:
-                        char_set.add(pattern[j])
-                        j += 1
-                tokens.append(('CHAR_CLASS', char_set))
-                i = j + 1 if j < n else n
-            elif char == '.':
-                tokens.append(('ANY', '.'))
-                i += 1
-            elif char in '|*+?()':
-                tokens.append(('OPERATOR', char))
-                i += 1
+        while i < len(self.pattern):
+            char = self.pattern[i]
+
+            if char == "\\":
+                token, i = self._read_escape_token(i + 1)
+                tokens.append(token)
+                continue
+
+            if char == "[":
+                token, i = self._read_character_class(i + 1)
+                tokens.append(token)
+                continue
+
+            if char == "(":
+                tokens.append(Token("LPAREN"))
+            elif char == ")":
+                tokens.append(Token("RPAREN"))
+            elif char == "|":
+                tokens.append(Token(self.UNION))
+            elif char == "*":
+                tokens.append(Token("STAR"))
+            elif char == "+":
+                tokens.append(Token("PLUS"))
+            elif char == "?":
+                tokens.append(Token("OPTIONAL"))
+            elif char == ".":
+                tokens.append(Token("ANY"))
             else:
-                tokens.append(('SYMBOL', char))
-                i += 1
+                tokens.append(Token("SYMBOL", char))
+            i += 1
+
         return tokens
 
-    def _insert_explicit_concat(self, tokens: List[Tuple[str, Any]]) -> List[Tuple[str, Any]]:
-        output = []
-        for i in range(len(tokens)):
-            tok = tokens[i]
-            output.append(tok)
-            if i + 1 < len(tokens):
-                next_tok = tokens[i + 1]
-                t1, v1 = tok
-                t2, v2 = next_tok
+    def insert_concatenation(self, tokens: list[Token]) -> list[Token]:
+        if not tokens:
+            raise RegexSyntaxError("empty regular expressions are not supported")
 
-                is_left_term = (t1 in ('SYMBOL', 'ANY', 'CHAR_CLASS') or v1 in ('*', '+', '?', ')'))
-                is_right_term = (t2 in ('SYMBOL', 'ANY', 'CHAR_CLASS') or v2 == '(')
+        result: list[Token] = []
+        previous: Token | None = None
 
-                if is_left_term and is_right_term:
-                    output.append(('OPERATOR', '.'))
-        return output
+        for token in tokens:
+            if previous is not None and self._can_end_atom(previous) and self._can_start_atom(token):
+                result.append(Token(self.CONCAT))
+            result.append(token)
+            previous = token
 
-    def _shunting_yard(self, tokens: List[Tuple[str, Any]]) -> List[Tuple[str, Any]]:
-        output = []
-        stack: List[Tuple[str, Any]] = []
-        precedence = {'*': 3, '+': 3, '?': 3, '.': 2, '|': 1}
+        return result
 
-        for tok_type, val in tokens:
-            if tok_type in ('SYMBOL', 'ANY', 'CHAR_CLASS'):
-                output.append((tok_type, val))
-            elif val == '(':
-                stack.append((tok_type, val))
-            elif val == ')':
-                while stack and stack[-1][1] != '(':
-                    output.append(stack.pop())
-                if stack and stack[-1][1] == '(':
-                    stack.pop()
+    def to_postfix(self, tokens: list[Token]) -> list[Token]:
+        output: list[Token] = []
+        operators: list[Token] = []
+
+        for token in tokens:
+            if token.kind in self.OPERANDS:
+                output.append(token)
+            elif token.kind in self.POSTFIX:
+                output.append(token)
+            elif token.kind in {self.CONCAT, self.UNION}:
+                while (
+                    operators
+                    and operators[-1].kind != "LPAREN"
+                    and self.PRECEDENCE[operators[-1].kind] >= self.PRECEDENCE[token.kind]
+                ):
+                    output.append(operators.pop())
+                operators.append(token)
+            elif token.kind == "LPAREN":
+                operators.append(token)
+            elif token.kind == "RPAREN":
+                while operators and operators[-1].kind != "LPAREN":
+                    output.append(operators.pop())
+                if not operators:
+                    raise RegexSyntaxError("unmatched closing parenthesis")
+                operators.pop()
             else:
-                while stack and stack[-1][1] != '(' and precedence.get(stack[-1][1], 0) >= precedence.get(val, 0):
-                    output.append(stack.pop())
-                stack.append((tok_type, val))
+                raise RegexSyntaxError(f"unknown token {token.kind!r}")
 
-        while stack:
-            output.append(stack.pop())
+        while operators:
+            operator = operators.pop()
+            if operator.kind == "LPAREN":
+                raise RegexSyntaxError("unmatched opening parenthesis")
+            output.append(operator)
+
         return output
 
-    def _build_ast(self, postfix: List[Tuple[str, Any]]) -> ASTNode:
-        stack: List[ASTNode] = []
-        for tok_type, val in postfix:
-            if tok_type == 'SYMBOL':
-                stack.append(ASTNode(node_type='SYMBOL', value=val))
-            elif tok_type == 'ANY':
-                stack.append(ASTNode(node_type='ANY', value='.'))
-            elif tok_type == 'CHAR_CLASS':
-                stack.append(ASTNode(node_type='CHAR_CLASS', value=val))
-            elif val == '*':
-                child = stack.pop()
-                stack.append(ASTNode(node_type='STAR', left=child))
-            elif val == '+':
-                child = stack.pop()
-                stack.append(ASTNode(node_type='PLUS', left=child))
-            elif val == '?':
-                child = stack.pop()
-                stack.append(ASTNode(node_type='OPTIONAL', left=child))
-            elif val == '.':
+    def build_ast(self, postfix: list[Token]) -> ASTNode:
+        stack: list[ASTNode] = []
+
+        for token in postfix:
+            if token.kind == "SYMBOL":
+                stack.append(ASTNode("SYMBOL", token.value))
+            elif token.kind == "ANY":
+                stack.append(ASTNode("ANY"))
+            elif token.kind == "CHAR_CLASS":
+                stack.append(ASTNode("CHAR_CLASS", set(token.value)))
+            elif token.kind in self.POSTFIX:
+                if not stack:
+                    raise RegexSyntaxError(f"operator {self._operator_text(token.kind)!r} has no operand")
+                stack.append(ASTNode(token.kind, left=stack.pop()))
+            elif token.kind in {self.CONCAT, self.UNION}:
+                if len(stack) < 2:
+                    raise RegexSyntaxError(f"operator {self._operator_text(token.kind)!r} has too few operands")
                 right = stack.pop()
                 left = stack.pop()
-                stack.append(ASTNode(node_type='CONCAT', left=left, right=right))
-            elif val == '|':
-                right = stack.pop()
-                left = stack.pop()
-                stack.append(ASTNode(node_type='UNION', left=left, right=right))
+                stack.append(ASTNode(token.kind, left=left, right=right))
+            else:
+                raise RegexSyntaxError(f"unknown postfix token {token.kind!r}")
 
         if len(stack) != 1:
-            raise ValueError(f"Invalid regex expression: stack size is {len(stack)}")
+            raise RegexSyntaxError("invalid regular expression")
         return stack[0]
+
+    def _read_escape_token(self, index: int) -> tuple[Token, int]:
+        if index >= len(self.pattern):
+            raise RegexSyntaxError("dangling escape at end of pattern")
+
+        escaped = self.pattern[index]
+        if escaped == "d":
+            return Token("CHAR_CLASS", frozenset(digits)), index + 1
+        if escaped == "w":
+            return Token("CHAR_CLASS", frozenset(ascii_letters + digits + "_")), index + 1
+        if escaped == "s":
+            return Token("CHAR_CLASS", frozenset(" \t\r\n\f\v")), index + 1
+        if escaped == "n":
+            return Token("SYMBOL", "\n"), index + 1
+        if escaped == "r":
+            return Token("SYMBOL", "\r"), index + 1
+        if escaped == "t":
+            return Token("SYMBOL", "\t"), index + 1
+
+        return Token("SYMBOL", escaped), index + 1
+
+    def _read_character_class(self, index: int) -> tuple[Token, int]:
+        characters: set[str] = set()
+
+        if index >= len(self.pattern):
+            raise RegexSyntaxError("unterminated character class")
+
+        while index < len(self.pattern):
+            if self.pattern[index] == "]":
+                if not characters:
+                    raise RegexSyntaxError("empty character classes are not supported")
+                return Token("CHAR_CLASS", frozenset(characters)), index + 1
+
+            start_chars, index = self._read_class_item(index)
+            if (
+                index < len(self.pattern)
+                and self.pattern[index] == "-"
+                and index + 1 < len(self.pattern)
+                and self.pattern[index + 1] != "]"
+            ):
+                if len(start_chars) != 1:
+                    raise RegexSyntaxError("character class ranges need single-character bounds")
+                end_chars, index = self._read_class_item(index + 1)
+                if len(end_chars) != 1:
+                    raise RegexSyntaxError("character class ranges need single-character bounds")
+
+                start = next(iter(start_chars))
+                end = next(iter(end_chars))
+                if ord(start) > ord(end):
+                    raise RegexSyntaxError(f"invalid character range {start}-{end}")
+                characters.update(chr(code) for code in range(ord(start), ord(end) + 1))
+            else:
+                characters.update(start_chars)
+
+        raise RegexSyntaxError("unterminated character class")
+
+    def _read_class_item(self, index: int) -> tuple[set[str], int]:
+        char = self.pattern[index]
+        if char == "\\":
+            if index + 1 >= len(self.pattern):
+                raise RegexSyntaxError("dangling escape in character class")
+            escaped = self.pattern[index + 1]
+            if escaped == "d":
+                return set(digits), index + 2
+            if escaped == "w":
+                return set(ascii_letters + digits + "_"), index + 2
+            if escaped == "s":
+                return set(whitespace), index + 2
+            if escaped == "n":
+                return {"\n"}, index + 2
+            if escaped == "r":
+                return {"\r"}, index + 2
+            if escaped == "t":
+                return {"\t"}, index + 2
+            return {escaped}, index + 2
+
+        return {char}, index + 1
+
+    def _can_end_atom(self, token: Token) -> bool:
+        return token.kind in self.OPERANDS or token.kind == "RPAREN" or token.kind in self.POSTFIX
+
+    def _can_start_atom(self, token: Token) -> bool:
+        return token.kind in self.OPERANDS or token.kind == "LPAREN"
+
+    def _operator_text(self, kind: str) -> str:
+        return {
+            self.CONCAT: "concatenation",
+            self.UNION: "|",
+            "STAR": "*",
+            "PLUS": "+",
+            "OPTIONAL": "?",
+        }.get(kind, kind)
+
+
+def parse_regex(pattern: str) -> ASTNode:
+    return RegexParser(pattern).parse()
+
+
+def ast_to_string(node: ASTNode | None, indent: int = 0) -> str:
+    """Return a readable multiline representation of an AST."""
+    if node is None:
+        return " " * indent + "None"
+
+    label = node.node_type
+    if node.value is not None:
+        label += f"({node.value!r})"
+
+    lines = [" " * indent + label]
+    if node.left is not None:
+        lines.append(ast_to_string(node.left, indent + 2))
+    if node.right is not None:
+        lines.append(ast_to_string(node.right, indent + 2))
+    return "\n".join(lines)
