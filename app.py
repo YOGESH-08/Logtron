@@ -269,21 +269,30 @@ with tab3:
             "Compare execution efficiency between Python's standard backtracking `re` module "
             "and LogScan's deterministic linear-time DFA scanner."
         )
+        st.caption(
+            "Python `re` is executed in a subprocess with a 2 second timeout for safer ReDoS demonstrations."
+        )
 
         if st.button("🚀 Run Scaling Benchmark", type="primary"):
             with st.spinner("Executing benchmarks across scaled log payloads..."):
-                runner = BenchmarkRunner(regex_input)
-                suite = runner.run_scaling_benchmark(log_content, scales=[1, 5, 20, 100, 500])
+                runner = BenchmarkRunner(regex_input, re_timeout_seconds=2.0)
+                suite = runner.run_scaling_benchmark(log_content, scales=[1, 5, 20, 100])
 
                 df_metrics = pd.DataFrame(
                     [
                         {
                             "Input Size": m.input_size_label,
                             "Bytes": m.input_size_bytes,
+                            "Python re Status": m.python_re_status,
                             "Python re (ms)": m.python_re_time_ms,
                             "LogScan DFA (ms)": m.dfa_scanner_time_ms,
-                            "Matches": m.dfa_scanner_matches,
-                            "DFA Speedup Factor": f"{m.speedup_ratio}x",
+                            "Python re Matches": m.python_re_matches,
+                            "DFA Matches": m.dfa_scanner_matches,
+                            "DFA Speedup Factor": (
+                                f">= {m.speedup_ratio}x"
+                                if m.python_re_timed_out
+                                else f"{m.speedup_ratio}x"
+                            ),
                         }
                         for m in suite.metrics
                     ]
@@ -317,6 +326,53 @@ with tab4:
     | **7. Benchmarking** | `benchmark/benchmark_runner.py` | Linear DFA vs Backtracking ReDoS Performance Analysis |
     """
     )
+
+    st.markdown("#### Viva Guide")
+
+    with st.expander("Regex Parser to AST", expanded=True):
+        st.markdown(
+            """
+            The parser converts the regex into typed tokens, inserts explicit concatenation,
+            converts infix notation to postfix using operator precedence, and builds an AST.
+            This makes the later automata stages operate on a clear formal structure.
+            """
+        )
+
+    with st.expander("Thompson Construction"):
+        st.markdown(
+            """
+            Each AST node becomes an epsilon-NFA fragment with one start state and one accept
+            state. Concatenation connects fragments, union creates two epsilon branches, and
+            repetition operators add loop and bypass epsilon transitions.
+            """
+        )
+
+    with st.expander("Subset Construction"):
+        st.markdown(
+            """
+            A DFA state represents a set of NFA states. The start state is the epsilon-closure
+            of the NFA start state. For every input symbol, the algorithm applies move followed
+            by epsilon-closure and creates a new DFA state for each unseen set.
+            """
+        )
+
+    with st.expander("Hopcroft Minimization"):
+        st.markdown(
+            """
+            Hopcroft's algorithm starts with accepting and non-accepting partitions. A worklist
+            repeatedly chooses splitter sets and refines partitions whose transitions behave
+            differently. States left in the same final partition are language-equivalent.
+            """
+        )
+
+    with st.expander("DFA Scanner and Benchmark"):
+        st.markdown(
+            """
+            The scanner advances deterministically through the minimal DFA and records accepted
+            spans. The benchmark compares Python re.finditer with the DFA scanner using a
+            timeout-limited Python re subprocess for safer ReDoS demonstrations.
+            """
+        )
 
 st.markdown("---")
 st.caption("LogScan DFA | Course Project for BITE306L — Theory of Computation")
