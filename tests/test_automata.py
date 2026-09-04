@@ -155,3 +155,22 @@ def test_benchmark_runner_single_and_scaling():
     suite = BenchmarkRunner("ERROR").run_scaling_benchmark("INFO ok\nERROR failed", scales=[1, 2])
     assert len(suite.metrics) == 2
     assert suite.summary["pattern"] == "ERROR"
+
+
+def test_multiline_wildcard_scanner():
+    scanner = build_scanner("(ERROR|WARN).*")
+    text = "2026-08-18 [INFO] OK\n2026-08-18 [WARN] Low disk space\n2026-08-18 [ERROR] Failure"
+    matches = scanner.find_matches(text, overlapping=False, longest=True)
+
+    assert len(matches) == 2
+    assert text[matches[0][0]:matches[0][1]] == "WARN] Low disk space"
+    assert text[matches[1][0]:matches[1][1]] == "ERROR] Failure"
+
+
+def test_fast_forward_scanner_matches_count_with_re():
+    runner = BenchmarkRunner("(ERROR|WARN).*")
+    suite = runner.run_scaling_benchmark("", scales=[1, 5])
+
+    for metric in suite.metrics:
+        assert metric.dfa_scanner_matches == metric.python_re_matches
+
