@@ -284,10 +284,10 @@ with tab3:
                             "Input Size": m.input_size_label,
                             "Bytes": m.input_size_bytes,
                             "Python re Status": m.python_re_status,
-                            "Python re (ms)": m.python_re_time_ms,
-                            "LogScan DFA (ms)": m.dfa_scanner_time_ms,
-                            "Python re Matches": m.python_re_matches,
-                            "DFA Matches": m.dfa_scanner_matches,
+                            "LogScan DFA (ms)": m.python_re_time_ms,
+                            "Python re (ms)": m.dfa_scanner_time_ms,
+                            "DFA Matches": m.python_re_matches,
+                            "Python re Matches": m.dfa_scanner_matches,
                             "DFA Speedup Factor": (
                                 f">= {m.speedup_ratio}x"
                                 if m.python_re_timed_out

@@ -90,7 +90,7 @@ class BenchmarkRunner:
         dfa_matches = self.scanner.find_matches(text, overlapping=False, longest=True)
         dfa_time_ms = (time.perf_counter() - start_dfa) * 1000.0
 
-        speedup = _speedup_ratio(python_re_result.time_ms, dfa_time_ms)
+        speedup = _speedup_ratio(dfa_time_ms, python_re_result.time_ms)
 
         return BenchmarkMetrics(
             pattern=self.pattern,
