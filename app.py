@@ -1,4 +1,4 @@
-"""LogScan DFA — Streamlit Web Application."""
+"""LogScan DFA — Professional Enterprise Web Application."""
 
 import html
 import time
@@ -8,7 +8,7 @@ import streamlit as st
 
 from benchmark.benchmark_runner import BenchmarkRunner
 from core.hopcroft import minimize_dfa
-from core.regex_parser import RegexParser, RegexSyntaxError, ast_to_string
+from core.regex_parser import RegexParser
 from core.scanner import DFAScanner
 from core.subset import nfa_to_dfa
 from core.thompson import regex_to_nfa
@@ -16,27 +16,139 @@ from visualization.graph_visualizer import visualize_dfa, visualize_nfa
 
 st.set_page_config(
     page_title="LogScan DFA — Log Pattern Analyzer",
-    page_icon="🔍",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# Header Section
-st.title("🔍 LogScan DFA")
-st.caption(
-    "High-Performance Log Pattern Analyzer using Regular Expressions and Finite Automata | Course: BITE306L (TOC)"
-)
-
+# Custom CSS for Modern Enterprise Dark Dashboard & Hiding Streamlit Branding
 st.markdown(
     """
----
-### Overview
-**LogScan DFA** converts regular expressions into minimal Deterministic Finite Automata (DFA) using 
-**Thompson Construction**, **Subset Construction**, and **Hopcroft's Minimization Algorithm**. 
-It replaces standard NFA backtracking with guaranteed **$O(n)$ linear-time streaming log scanning**, 
-immunizing log engines against Catastrophic Backtracking (ReDoS).
-"""
+    <style>
+    /* Hide Deploy Button & Footer only */
+    #MainMenu {display: none !important;}
+    footer {display: none !important;}
+    .stDeployButton {display: none !important;}
+
+    /* Sidebar & Sidebar Expand/Collapse Toggle Button Styling */
+    section[data-testid="stSidebar"] {
+        background-color: #0D1117 !important;
+        border-right: 1px solid #30363D !important;
+    }
+    
+    [data-testid="stSidebarCollapsedControl"] {
+        display: block !important;
+        visibility: visible !important;
+        z-index: 999999 !important;
+        margin-top: 5px !important;
+    }
+    
+    [data-testid="stSidebarCollapsedControl"] button {
+        color: #F0F6FC !important;
+        background-color: #161B22 !important;
+        border: 1px solid #30363D !important;
+        border-radius: 6px !important;
+    }
+
+    /* Main Layout Container */
+    .main .block-container {
+        padding-top: 1rem !important;
+        margin-top: 0px !important;
+        padding-bottom: 3rem;
+        max-width: 1250px;
+    }
+
+    /* Metric Cards Styling */
+    [data-testid="stMetric"] {
+        background-color: #161B22;
+        border: 1px solid #30363D;
+        border-radius: 8px;
+        padding: 14px 18px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    }
+
+    [data-testid="stMetricLabel"] {
+        color: #8B949E !important;
+        font-size: 0.82rem !important;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    [data-testid="stMetricValue"] {
+        color: #58A6FF !important;
+        font-size: 1.45rem !important;
+        font-weight: 700;
+    }
+
+    /* Segmented Navigation Tab Bar Styling */
+    .stTabs [data-baseweb="tab-list"] {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        background-color: #161B22;
+        padding: 6px;
+        border-radius: 12px;
+        border: 1px solid #30363D;
+        margin-top: 15px;
+        margin-bottom: 25px;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        height: 40px;
+        border-radius: 8px;
+        padding: 0 22px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #8B949E;
+        border: none !important;
+        transition: all 0.15s ease-in-out;
+    }
+
+    .stTabs [aria-selected="true"] {
+        background-color: #21262D !important;
+        color: #58A6FF !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Sidebar Styling */
+    [data-testid="stSidebar"] {
+        background-color: #0D1117;
+        border-right: 1px solid #30363D;
+    }
+    
+    /* Primary Action Buttons */
+    div.stButton > button[kind="primary"] {
+        background-color: #238636 !important;
+        border: 1px solid rgba(240, 246, 252, 0.1) !important;
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
+        border-radius: 6px !important;
+        padding: 6px 20px !important;
+    }
+    div.stButton > button[kind="primary"]:hover {
+        background-color: #2EA043 !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
+
+# Centered Hero Header Section
+st.markdown(
+    """
+    <div style="text-align: center; padding: 0px 0 10px 0;">
+        <h1 style="font-size: 2.6rem; font-weight: 800; letter-spacing: -0.5px; color: #F0F6FC; margin:0;">
+            LogScan DFA
+        </h1>
+        <p style="color: #8B949E; font-size: 0.95rem; max-width: 680px; margin: 0 auto; line-height: 1.5;">
+            High-Performance Log Pattern Analyzer using Regular Expressions and Finite Automata | Course: BITE306L
+        </p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+
 
 # Initialize Session State for Preset Patterns
 if "pattern_input" not in st.session_state:
@@ -56,7 +168,7 @@ def on_preset_change():
 
 
 # Sidebar Controls
-st.sidebar.header("⚙️ Configuration")
+st.sidebar.header("Configuration")
 
 preset_option = st.sidebar.selectbox(
     "Sample Presets",
@@ -78,7 +190,7 @@ regex_input = st.sidebar.text_input(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("📄 Input Source")
+st.sidebar.subheader("Input Source")
 input_mode = st.sidebar.radio(
     "Select Input Mode",
     ["Sample Text", "Preset Log Files", "Upload Log File"],
@@ -125,7 +237,7 @@ else:
         log_content = ""
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("🔍 Scanner Settings")
+st.sidebar.subheader("Scanner Settings")
 overlapping = st.sidebar.checkbox("Allow Overlapping Matches", value=False)
 longest_match = st.sidebar.checkbox("Find Longest Match per Position", value=True)
 
@@ -150,29 +262,28 @@ if regex_input:
         pipeline_error = str(exc)
 
 if pipeline_error:
-    st.error(f"❌ Automata Pipeline Construction Error: {pipeline_error}")
+    st.error(f"Automata Pipeline Construction Error: {pipeline_error}")
 
 
-# Main App Tabs
-tab1, tab2, tab3, tab4 = st.tabs(
+# Main App Segmented Navigation Tabs
+tab1, tab2, tab3 = st.tabs(
     [
-        "🎯 Match Results",
-        "📊 DFA Visualizer",
-        "⚡ ReDoS Benchmark",
-        "📘 Architecture & Theory",
+        "Match Results",
+        "DFA Visualizer",
+        "ReDoS Benchmark",
     ]
 )
 
 # -----------------------------------------------------------------------------
-# TAB 1: Match Results (Developer 1 - Yogesh Task)
+# TAB 1: Match Results
 # -----------------------------------------------------------------------------
 with tab1:
     st.subheader("Log Scan & Match Highlighting")
 
     if pipeline_error:
-        st.warning("⚠️ Please correct the regular expression pattern in the sidebar configuration.")
+        st.warning("Please correct the regular expression pattern in the sidebar configuration.")
     elif not log_content:
-        st.info("ℹ️ Please enter or upload log content in the sidebar to run the scan.")
+        st.info("Please enter or upload log content in the sidebar to run the scan.")
     else:
         start_time = time.perf_counter()
         matches = scanner.find_match_objects(
@@ -191,29 +302,74 @@ with tab1:
         with col4:
             st.metric("Minimal DFA States", len(minimal_dfa.states))
 
-        st.markdown("#### Highlighted Log Payload")
+        st.markdown("#### Highlighted Log Payload Viewer")
 
-        # Construct non-overlapping HTML highlighted view
+        # Construct line-numbered, IDE-styled HTML view
         spans = scanner.find_matches(log_content, overlapping=False, longest=longest_match)
-        highlighted_html = ""
-        last_idx = 0
-        for s, e in spans:
-            highlighted_html += html.escape(log_content[last_idx:s])
-            matched_slice = html.escape(log_content[s:e])
-            highlighted_html += (
-                f'<mark style="background-color: #FFE082; color: #000000; '
-                f'padding: 2px 4px; border-radius: 4px; font-weight: bold;">'
-                f"{matched_slice}</mark>"
-            )
-            last_idx = e
-        highlighted_html += html.escape(log_content[last_idx:])
+        lines = log_content.splitlines()
 
-        st.markdown(
-            f'<pre style="background-color: #0E1117; color: #FAFAFA; padding: 15px; '
-            f'border-radius: 8px; font-family: monospace; white-space: pre-wrap; '
-            f'line-height: 1.5;">{highlighted_html}</pre>',
-            unsafe_allow_html=True,
-        )
+        line_offsets = []
+        curr = 0
+        for line in lines:
+            line_offsets.append((curr, curr + len(line)))
+            curr += len(line) + 1  # account for newline
+
+        html_lines = []
+        for idx, (l_start, l_end) in enumerate(line_offsets, start=1):
+            line_str = log_content[l_start:l_end]
+            line_spans = [
+                (max(0, s - l_start), min(len(line_str), e - l_start))
+                for s, e in spans
+                if s < l_end and e > l_start
+            ]
+
+            line_html = ""
+            last = 0
+            for ms, me in line_spans:
+                line_html += html.escape(line_str[last:ms])
+                matched_text = html.escape(line_str[ms:me])
+                line_html += (
+                    f'<mark style="background: rgba(255, 213, 79, 0.22); color: #FFE082; '
+                    f'border: 1px solid rgba(255, 213, 79, 0.55); border-radius: 4px; '
+                    f'padding: 1px 5px; font-weight: 700; box-shadow: 0 0 8px rgba(255, 213, 79, 0.15);">'
+                    f"{matched_text}</mark>"
+                )
+                last = me
+            line_html += html.escape(line_str[last:])
+
+            line_num_html = (
+                f'<span style="color: #484F58; user-select: none; min-width: 35px; '
+                f'display: inline-block; text-align: right; padding-right: 15px; '
+                f'font-family: Consolas, Monaco, monospace; font-size: 13px;">{idx}</span>'
+            )
+            html_lines.append(
+                f'<div style="line-height: 1.6; font-family: \'Fira Code\', Consolas, Monaco, monospace; '
+                f'font-size: 13.5px; white-space: pre-wrap; word-break: break-all;">'
+                f"{line_num_html}{line_html}</div>"
+            )
+
+        log_body_html = "\n".join(html_lines) if html_lines else html.escape(log_content)
+
+        terminal_html = f"""
+        <div style="background-color: #0D1117; border: 1px solid #30363D; border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); overflow: hidden; margin-top: 10px; margin-bottom: 20px;">
+            <div style="background-color: #161B22; border-bottom: 1px solid #30363D; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="height: 12px; width: 12px; background-color: #FF5F56; border-radius: 50%; display: inline-block;"></span>
+                    <span style="height: 12px; width: 12px; background-color: #FFBD2E; border-radius: 50%; display: inline-block;"></span>
+                    <span style="height: 12px; width: 12px; background-color: #27C93F; border-radius: 50%; display: inline-block;"></span>
+                    <span style="color: #8B949E; font-family: monospace; font-size: 12.5px; margin-left: 10px; font-weight: 500;">logscan_output.log — {len(lines)} lines</span>
+                </div>
+                <div style="background-color: rgba(255, 213, 79, 0.15); color: #FFE082; border: 1px solid rgba(255, 213, 79, 0.4); padding: 3px 10px; border-radius: 12px; font-size: 12px; font-family: monospace; font-weight: 600;">
+                    {len(matches)} Matches Highlighted
+                </div>
+            </div>
+            <div style="padding: 16px; max-height: 480px; overflow-y: auto; background-color: #0D1117; color: #E6EDF3;">
+                {log_body_html}
+            </div>
+        </div>
+        """
+
+        st.markdown(terminal_html, unsafe_allow_html=True)
 
         if matches:
             st.markdown("#### Match Spans Summary")
@@ -232,7 +388,7 @@ with tab1:
             st.info("No matching pattern instances found in the provided log payload.")
 
 # -----------------------------------------------------------------------------
-# TAB 2: Automata Visualizer (Developer 2 - Teammate Task)
+# TAB 2: Automata Visualizer
 # -----------------------------------------------------------------------------
 with tab2:
     st.subheader("Automata Pipeline Visualization")
@@ -256,12 +412,11 @@ with tab2:
         with mcol4:
             st.metric("Hopcroft Reduction", f"{state_reduction}%")
 
-        vtab1, vtab2, vtab3, vtab4 = st.tabs(
+        vtab1, vtab2, vtab3 = st.tabs(
             [
-                "1️⃣ Thompson ε-NFA",
-                "2️⃣ Powerset DFA",
-                "3️⃣ Hopcroft Minimal DFA",
-                "🌳 Abstract Syntax Tree",
+                "Thompson NFA",
+                "Powerset DFA",
+                "Hopcroft Minimal DFA",
             ]
         )
 
@@ -277,13 +432,8 @@ with tab2:
             st.markdown("**Hopcroft Minimal State DFA Diagram**")
             st.graphviz_chart(visualize_dfa(minimal_dfa, title="Minimal DFA"))
 
-        with vtab4:
-            st.markdown("**Abstract Syntax Tree (AST)**")
-            if ast:
-                st.code(ast_to_string(ast), language="text")
-
 # -----------------------------------------------------------------------------
-# TAB 3: ReDoS Performance Benchmark (Developer 2 - Teammate Task)
+# TAB 3: ReDoS Performance Benchmark
 # -----------------------------------------------------------------------------
 with tab3:
     st.subheader("Performance Benchmark vs Python `re` Engine")
@@ -299,7 +449,7 @@ with tab3:
             "Python `re` is executed in a subprocess with a 2 second timeout for safer ReDoS demonstrations."
         )
 
-        if st.button("🚀 Run Scaling Benchmark", type="primary"):
+        if st.button("Run Scaling Benchmark", type="primary"):
             with st.spinner("Executing benchmarks across scaled log payloads..."):
                 runner = BenchmarkRunner(regex_input, re_timeout_seconds=2.0)
                 suite = runner.run_scaling_benchmark(
@@ -312,10 +462,10 @@ with tab3:
                             "Input Size": m.input_size_label,
                             "Bytes": m.input_size_bytes,
                             "Python re Status": m.python_re_status,
-                            "LogScan DFA (ms)": m.python_re_time_ms,
-                            "Python re (ms)": m.dfa_scanner_time_ms,
-                            "DFA Matches": m.python_re_matches,
-                            "Python re Matches": m.dfa_scanner_matches,
+                            "LogScan DFA (ms)": m.dfa_scanner_time_ms,
+                            "Python re (ms)": m.python_re_time_ms,
+                            "DFA Matches": m.dfa_scanner_matches,
+                            "Python re Matches": m.python_re_matches,
                             "DFA Speedup Factor": (
                                 f">= {m.speedup_ratio}x"
                                 if m.python_re_timed_out
@@ -335,72 +485,7 @@ with tab3:
                 st.markdown("#### Execution Time Comparison (ms)")
                 st.bar_chart(chart_data)
 
-# -----------------------------------------------------------------------------
-# TAB 4: Architecture & Theory (Developer 2 - Teammate Task)
-# -----------------------------------------------------------------------------
-with tab4:
-    st.subheader("Theory of Computation (BITE306L) Mapping")
 
-    st.markdown(
-        """
-    | Pipeline Stage | Module | Theoretical Algorithm / Concept |
-    |---|---|---|
-    | **1. Regex Parsing** | `core/regex_parser.py` | Shunting-Yard Infix $\\rightarrow$ Postfix Conversion, Explicit Concatenation Insertion |
-    | **2. NFA Construction** | `core/thompson.py` | Thompson Construction Algorithm with $\\epsilon$-transitions |
-    | **3. Powerset DFA** | `core/subset.py` | Subset Construction, $\\epsilon$-Closure Computation |
-    | **4. DFA Minimization** | `core/hopcroft.py` | Hopcroft Partition Refinement Algorithm ($O(n \\log n)$) |
-    | **5. Log Scanning** | `core/scanner.py` | Deterministic Finite State Machine Input Pass ($O(n)$) |
-    | **6. Visualizer** | `visualization/graph_visualizer.py` | Graphviz Automata State Diagram Rendering |
-    | **7. Benchmarking** | `benchmark/benchmark_runner.py` | Linear DFA vs Backtracking ReDoS Performance Analysis |
-    """
-    )
-
-    st.markdown("#### Viva Guide")
-
-    with st.expander("Regex Parser to AST", expanded=True):
-        st.markdown(
-            """
-            The parser converts the regex into typed tokens, inserts explicit concatenation,
-            converts infix notation to postfix using operator precedence, and builds an AST.
-            This makes the later automata stages operate on a clear formal structure.
-            """
-        )
-
-    with st.expander("Thompson Construction"):
-        st.markdown(
-            """
-            Each AST node becomes an epsilon-NFA fragment with one start state and one accept
-            state. Concatenation connects fragments, union creates two epsilon branches, and
-            repetition operators add loop and bypass epsilon transitions.
-            """
-        )
-
-    with st.expander("Subset Construction"):
-        st.markdown(
-            """
-            A DFA state represents a set of NFA states. The start state is the epsilon-closure
-            of the NFA start state. For every input symbol, the algorithm applies move followed
-            by epsilon-closure and creates a new DFA state for each unseen set.
-            """
-        )
-
-    with st.expander("Hopcroft Minimization"):
-        st.markdown(
-            """
-            Hopcroft's algorithm starts with accepting and non-accepting partitions. A worklist
-            repeatedly chooses splitter sets and refines partitions whose transitions behave
-            differently. States left in the same final partition are language-equivalent.
-            """
-        )
-
-    with st.expander("DFA Scanner and Benchmark"):
-        st.markdown(
-            """
-            The scanner advances deterministically through the minimal DFA and records accepted
-            spans. The benchmark compares Python re.finditer with the DFA scanner using a
-            timeout-limited Python re subprocess for safer ReDoS demonstrations.
-            """
-        )
 
 st.markdown("---")
 st.caption("LogScan DFA | Course Project for BITE306L — Theory of Computation")
