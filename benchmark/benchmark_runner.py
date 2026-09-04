@@ -116,7 +116,7 @@ class BenchmarkRunner:
     ) -> BenchmarkSuiteResult:
         """Run benchmarks over repeated payload sizes."""
         if scales is None:
-            scales = [1, 5, 20, 100]
+            scales = [1, 2, 5, 10, 20, 50, 100, 250, 500]
 
         seed_text = base_text or DEFAULT_BENCHMARK_TEXT
         metrics = [

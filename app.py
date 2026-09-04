@@ -79,7 +79,10 @@ regex_input = st.sidebar.text_input(
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("📄 Input Source")
-input_mode = st.sidebar.radio("Select Input Mode", ["Sample Text", "Upload Log File"])
+input_mode = st.sidebar.radio(
+    "Select Input Mode",
+    ["Sample Text", "Preset Log Files", "Upload Log File"],
+)
 
 if input_mode == "Sample Text":
     log_content = st.sidebar.text_area(
@@ -91,6 +94,29 @@ if input_mode == "Sample Text":
 2026-08-18 10:15:45 [ERROR] Critical storage failure on node-04 (404).""",
         height=180,
     )
+elif input_mode == "Preset Log Files":
+    preset_file = st.sidebar.selectbox(
+        "Select Sample Log File",
+        [
+            "Apache Access Log (sample_logs/apache_access.log)",
+            "Syslog Authentication Log (sample_logs/syslog_auth.log)",
+            "App Server Log (sample_logs/app_server.log)",
+            "Database Audit Log (sample_logs/db_audit.log)",
+        ],
+    )
+    file_map = {
+        "Apache Access Log (sample_logs/apache_access.log)": "sample_logs/apache_access.log",
+        "Syslog Authentication Log (sample_logs/syslog_auth.log)": "sample_logs/syslog_auth.log",
+        "App Server Log (sample_logs/app_server.log)": "sample_logs/app_server.log",
+        "Database Audit Log (sample_logs/db_audit.log)": "sample_logs/db_audit.log",
+    }
+    filepath = file_map[preset_file]
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            log_content = f.read()
+    except Exception as exc:
+        st.error(f"Error loading {filepath}: {exc}")
+        log_content = ""
 else:
     uploaded_file = st.sidebar.file_uploader("Upload Log File", type=["log", "txt"])
     if uploaded_file is not None:
@@ -276,7 +302,9 @@ with tab3:
         if st.button("🚀 Run Scaling Benchmark", type="primary"):
             with st.spinner("Executing benchmarks across scaled log payloads..."):
                 runner = BenchmarkRunner(regex_input, re_timeout_seconds=2.0)
-                suite = runner.run_scaling_benchmark(log_content, scales=[1, 5, 20, 100])
+                suite = runner.run_scaling_benchmark(
+                    log_content, scales=[1, 2, 5, 10, 20, 50, 100, 250, 500]
+                )
 
                 df_metrics = pd.DataFrame(
                     [
@@ -302,7 +330,7 @@ with tab3:
                 st.dataframe(df_metrics, use_container_width=True)
 
                 chart_data = df_metrics.set_index("Input Size")[
-                    ["Python re (ms)", "LogScan DFA (ms)"]
+                    ["LogScan DFA (ms)", "Python re (ms)"]
                 ]
                 st.markdown("#### Execution Time Comparison (ms)")
                 st.bar_chart(chart_data)
